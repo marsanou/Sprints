@@ -1,5 +1,56 @@
 # NIVELL 1 PREPARACIÓ DE LA BBDD: 
-#Creo les taules des de EER
+CREATE DATABASE transactions;
+CREATE TABLE companies 
+	(company_id VARCHAR(45),
+    company_name VARCHAR(45),
+    phone VARCHAR(45),
+    email VARCHAR(45),
+    country VARCHAR(45),
+    website VARCHAR(45));
+
+CREATE TABLE products (
+	id VARCHAR(45),
+    product_name VARCHAR(45),
+    price VARCHAR(45),
+    colour VARCHAR(45),
+    weight VARCHAR(45),
+    warehouse_id VARCHAR(45));
+    
+CREATE TABLE transactions (
+	id VARCHAR(45),
+    card_id VARCHAR(45),
+    business_id VARCHAR(45),
+    timestamp VARCHAR(45),
+    amount VARCHAR(45),
+    declined VARCHAR(45),
+    product_ids VARCHAR(45),
+    user_id VARCHAR(45),
+    lat VARCHAR(45),
+    longitude VARCHAR(45));
+
+CREATE TABLE users (
+	id VARCHAR(45),
+    name VARCHAR(45),
+    surname VARCHAR(45),
+    phone VARCHAR(45),
+    email VARCHAR(45),
+    birth_date VARCHAR(45),
+    country VARCHAR(45),
+    city VARCHAR(45),
+    postal_code VARCHAR(45),
+    address VARCHAR(100));
+    
+CREATE TABLE credit_cards (
+	id VARCHAR(45),
+    user_id VARCHAR(45),
+    iban VARCHAR(45),
+    pan VARCHAR(45),
+    pin VARCHAR(45),
+    cvv VARCHAR(45),
+    track1 VARCHAR(100),
+    track2 VARCHAR(100),
+    expiring_date VARCHAR(45));
+
 #busco la carpeta on puc desar els arxius per carregar-los
 SHOW VARIABLES LIKE 'secure_file_priv';
 
@@ -9,15 +60,15 @@ INTO TABLE companies
 FIELDS TERMINATED BY ','
 IGNORE 1 ROWS;
 
-ALTER TABLE credit_cards
-MODIFY COLUMN track1 VARCHAR(100);
-
-ALTER TABLE credit_cards
-MODIFY COLUMN track1 VARCHAR(100);
-
 LOAD DATA
 INFILE 'C:\\ProgramData\\MySQL\\MySQL Server 8.0\\Uploads\\credit_cards.csv'
 INTO TABLE credit_cards 
+FIELDS TERMINATED BY ','
+IGNORE 1 ROWS;
+
+LOAD DATA
+INFILE 'C:\\ProgramData\\MySQL\\MySQL Server 8.0\\Uploads\\products.csv'
+INTO TABLE products 
 FIELDS TERMINATED BY ','
 IGNORE 1 ROWS;
 
@@ -26,9 +77,6 @@ INFILE 'C:\\ProgramData\\MySQL\\MySQL Server 8.0\\Uploads\\transactions.csv'
 INTO TABLE transactions 
 FIELDS TERMINATED BY ';'
 IGNORE 1 ROWS;
-
-ALTER TABLE users
-MODIFY COLUMN address VARCHAR(100);
 
 LOAD DATA
 INFILE 'C:\\ProgramData\\MySQL\\MySQL Server 8.0\\Uploads\\users_ca.csv'
@@ -67,6 +115,9 @@ ADD CONSTRAINT PK_user PRIMARY KEY (id);
 ALTER TABLE transactions
 ADD CONSTRAINT PK_trans PRIMARY KEY(id);
 
+ALTER TABLE credit_cards
+ADD CONSTRAINT PK_ccard PRIMARY KEY(id);
+
 #intentem relacionar amb productes, però ens dona error. 
 ALTER TABLE transactions
 ADD CONSTRAINT FK_prod FOREIGN KEY(product_ids) REFERENCES Products(id);
@@ -81,12 +132,10 @@ WHERE product_ids NOT IN (SELECT id FROM products);
 CREATE TABLE transaction_details (
     detail_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, 
     transact_id VARCHAR(45),
-    product_ids VARCHAR(25)
+    product_ids VARCHAR(45)
 );
 
-
 # I UN COP CREADA  HI AFEGIM EL CONTINGUT DE LA TAULA TRANSACCIONS. 
-
 INSERT INTO transaction_details (transact_id, product_ids)
 SELECT id, part
 FROM (
@@ -108,15 +157,13 @@ FROM (
     FROM split_cte
 ) AS temp_results;
 
-/*
-M'HAN RECOMANAT AQUESTA ALTRA OPCIÓ QUE SEMBLA MÉS SENZILLA.
-INSERT INTO transaction_details (transact_id, product_ids)
-	SELECT transactions.id as transact_id, products.id AS product_ids
-	FROM transactions
-	JOIN products ON FIND_IN_SET(products.id, REPLACE (transactions.product_ids, " ", "")) > 0;
-*/
+SELECT transactions.id, transactions.product_ids, transaction_details.product_ids
+FROM transactions
+JOIN transaction_details
+ON transactions.id = transaction_details.transact_id
+WHERE length(transactions.product_ids)>3
+ORDER BY id;
 
-SELECT * FROM orders2;
 #ESTABLIM RELACIONS ENTRE LES TAULES: 
 
 ALTER TABLE transactions
@@ -130,6 +177,10 @@ ADD CONSTRAINT FK_user FOREIGN KEY(user_id) REFERENCES users(id);
 
 ALTER TABLE transaction_details
 ADD CONSTRAINT FK_transact FOREIGN KEY(transact_id) REFERENCES transactions(id);
+
+#la FK de transaction_details dona error,  hi ha numeros amb espais en blanc. 
+UPDATE transaction_details
+SET product_ids = TRIM(product_ids);
 
 ALTER TABLE transaction_details
 ADD CONSTRAINT FK_product FOREIGN KEY(product_ids) REFERENCES products(id);
@@ -166,6 +217,14 @@ WHERE transact.business_id = (SELECT company_id
 	FROM companies
 	WHERE company_name = "Donec Ltd")
 GROUP BY iban;
+
+#COMPROVEM QUE LA QUANTITAT NOT DECLINED COINCIDEIX
+#(la persona que em corregeix no havia filtrat per declined).
+SELECT company_id, amount, DECLINED
+	FROM companies
+    JOIN transactions
+    ON transactions.business_id = companies.company_id
+	WHERE company_name = "Donec Ltd";
 
 #NIVELL 2 EXERCICI 1
 
