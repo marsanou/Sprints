@@ -139,22 +139,34 @@ CREATE TABLE transaction_details (
 INSERT INTO transaction_details (transact_id, product_ids)
 SELECT id, part
 FROM (
-    WITH RECURSIVE split_cte AS (
-        SELECT 
-            id,
-            SUBSTRING_INDEX(product_ids, ',', 1) AS part,
-            SUBSTRING(product_ids, LENGTH(SUBSTRING_INDEX(product_ids, ',', 1)) + 2) AS rest
-        FROM transactions
-        UNION ALL
-        SELECT 
-            id,
-            SUBSTRING_INDEX(rest, ',', 1),
-            SUBSTRING(rest, LENGTH(SUBSTRING_INDEX(rest, ',', 1)) + 2)
-        FROM split_cte
-        WHERE rest != ''
-    )
-    SELECT id, part
-    FROM split_cte
+	WITH RECURSIVE split_cte AS (
+		SELECT 
+			id,
+			CASE 
+				WHEN LOCATE(',', product_ids) = 0 THEN product_ids -- Si no hi ha comes, agafem tota la cadena
+				ELSE SUBSTRING(product_ids, 1, LOCATE(',', product_ids) - 1) -- Prenem la part abans de la primera coma
+			END AS part,
+			CASE 
+				WHEN LOCATE(',', product_ids) = 0 THEN '' -- Si no hi ha comes, no queda cap resta
+				ELSE SUBSTRING(product_ids, LOCATE(',', product_ids) + 1) -- Prenem la part després de la coma
+			END AS rest
+		FROM transactions
+		UNION ALL
+		SELECT 
+			id,
+			CASE 
+				WHEN LOCATE(',', rest) = 0 THEN rest
+				ELSE SUBSTRING(rest, 1, LOCATE(',', rest) - 1)
+			END,
+			CASE 
+				WHEN LOCATE(',', rest) = 0 THEN ''
+				ELSE SUBSTRING(rest, LOCATE(',', rest) + 1)
+			END
+		FROM split_cte
+		WHERE rest != ''
+	)
+	SELECT id, part
+	FROM split_cte
 ) AS temp_results;
 
 SELECT transactions.id, transactions.product_ids, transaction_details.product_ids
